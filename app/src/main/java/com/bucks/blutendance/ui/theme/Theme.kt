@@ -37,16 +37,20 @@ private val WhiteLightScheme = lightColorScheme(
     surfaceContainerHighest = Color(0xFFF1F3F4),
 )
 
-/* Dark scheme kept for potential future use */
+/* Dark scheme – pure-black surfaces for AMOLED friendliness */
 private val DarkCallScheme = darkColorScheme(
     primary = Color(0xFF8AB4F8),
     onPrimary = Color.Black,
-    background = Color(0xFF1B1B1F),
+    background = Color.Black,
     onBackground = Color.White,
-    surface = Color(0xFF1B1B1F),
+    surface = Color.Black,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF3D3D45),
+    surfaceVariant = Color(0xFF2C2C2C),
     onSurfaceVariant = Color(0xFFCAC4D0),
+    surfaceContainer = Color.Black,
+    surfaceContainerLow = Color.Black,
+    surfaceContainerHigh = Color(0xFF1B1B1F),
+    surfaceContainerHighest = Color(0xFF2C2C2C),
 )
 
 @Composable

@@ -1,7 +1,11 @@
 package com.bucks.blutendance
 
+import android.content.Intent
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,6 +36,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -40,6 +45,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -58,10 +64,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bucks.blutendance.call.CallRecordAccessibilityService
 import com.bucks.blutendance.call.CallRecordingManager
 import com.bucks.blutendance.call.RecordingPrefs
+import com.bucks.blutendance.call.SuperUserPrefs
 import com.bucks.blutendance.ui.theme.FirstappTheme
 import kotlinx.coroutines.delay
 import java.io.File
@@ -70,7 +80,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Hidden "Super User" settings screen accessible by dialing 0909090909.
+ * Hidden "Super User" settings screen accessible by dialing the saved super user code.
  * Contains call recording toggle and a list of saved recordings
  * (stored inside the app's internal directory).
  */
@@ -101,6 +111,9 @@ private fun SuperUserScreen(onBack: () -> Unit) {
     var recordingEnabled by remember { mutableStateOf(RecordingPrefs.isRecordingEnabled(context)) }
     var recordings by remember { mutableStateOf(CallRecordingManager.getRecordings(context)) }
     var showDeleteAll by remember { mutableStateOf(false) }
+    var showChangeCodeDialog by remember { mutableStateOf(false) }
+    var superUserCode by remember { mutableStateOf(SuperUserPrefs.getSuperUserCode(context)) }
+    var codeChangeMessage by remember { mutableStateOf<String?>(null) }
 
     // Currently playing file
     var playingFile by remember { mutableStateOf<File?>(null) }
@@ -130,6 +143,12 @@ private fun SuperUserScreen(onBack: () -> Unit) {
     fun playFile(file: File) {
         mediaPlayer?.release()
         val mp = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
             setDataSource(file.absolutePath)
             prepare()
             start()
@@ -140,6 +159,15 @@ private fun SuperUserScreen(onBack: () -> Unit) {
         }
         mediaPlayer = mp
         playingFile = file
+    }
+
+    fun saveFileToDevice(file: File) {
+        val ok = CallRecordingManager.saveToDevice(context, file)
+        Toast.makeText(
+            context,
+            if (ok) "Saved to Music/CallRecordings" else "Failed to save",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     fun stopPlayback() {
@@ -226,9 +254,14 @@ private fun SuperUserScreen(onBack: () -> Unit) {
                                 color = TextDark
                             )
                             Text(
-                                if (recordingEnabled) "All calls will be recorded"
+                                if (recordingEnabled) "Recording enabled"
                                 else "Recording is off",
                                 fontSize = 13.sp,
+                                color = TextLight
+                            )
+                            Text(
+                                "Enable Accessibility Service below for best results.",
+                                fontSize = 11.sp,
                                 color = TextLight
                             )
                         }
@@ -245,6 +278,119 @@ private fun SuperUserScreen(onBack: () -> Unit) {
                                 uncheckedTrackColor = Color(0xFFDADCE0)
                             )
                         )
+                    }
+                }
+            }
+
+            // ── Accessibility Service Card ───────────────────────
+            item {
+                val a11yRunning = CallRecordAccessibilityService.isRunning
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(if (a11yRunning) Color(0xFF4CAF50) else RecordRed)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (a11yRunning) "Accessibility Service: Active"
+                                else "Accessibility Service: Not enabled",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextDark
+                            )
+                        }
+                        if (a11yRunning) {
+                            Text(
+                                "VOICE_CALL source will be tried first for full call audio.",
+                                fontSize = 13.sp,
+                                color = TextLight,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        } else {
+                            Text(
+                                "Enable the accessibility service to allow recording both sides of the call. " +
+                                    "Without it, only microphone audio (your voice + loudspeaker) is captured.",
+                                fontSize = 13.sp,
+                                color = TextLight,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            TextButton(
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                },
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text("Open Accessibility Settings")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Super User password/code ────────────────────────
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Text(
+                            "Super User Password",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextDark
+                        )
+                        Text(
+                            "Current code: ${maskCode(superUserCode)}",
+                            fontSize = 13.sp,
+                            color = TextLight,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                        Text(
+                            "Use this code in the dialer to open this screen.",
+                            fontSize = 11.sp,
+                            color = TextLight,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                        TextButton(
+                            onClick = {
+                                codeChangeMessage = null
+                                showChangeCodeDialog = true
+                            },
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Text("Change Password")
+                        }
+                        codeChangeMessage?.let { msg ->
+                            Text(
+                                msg,
+                                fontSize = 12.sp,
+                                color = AccentBlue,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -327,7 +473,8 @@ private fun SuperUserScreen(onBack: () -> Unit) {
                         if (playingFile == file) stopPlayback()
                         else playFile(file)
                     },
-                    onDelete = { deleteFile(file) }
+                    onDelete = { deleteFile(file) },
+                    onSave = { saveFileToDevice(file) }
                 )
             }
 
@@ -358,6 +505,74 @@ private fun SuperUserScreen(onBack: () -> Unit) {
             }
         )
     }
+
+    // ── Change super user code dialog ────────────────────────────
+    if (showChangeCodeDialog) {
+        var currentCode by remember { mutableStateOf("") }
+        var newCode by remember { mutableStateOf("") }
+        var confirmCode by remember { mutableStateOf("") }
+        var codeError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showChangeCodeDialog = false },
+            title = { Text("Change Super User Password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = currentCode,
+                        onValueChange = { currentCode = it.filter { ch -> ch.isDigit() || ch == '*' || ch == '#' } },
+                        label = { Text("Current Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    OutlinedTextField(
+                        value = newCode,
+                        onValueChange = { newCode = it.filter { ch -> ch.isDigit() || ch == '*' || ch == '#' } },
+                        label = { Text("New Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    OutlinedTextField(
+                        value = confirmCode,
+                        onValueChange = { confirmCode = it.filter { ch -> ch.isDigit() || ch == '*' || ch == '#' } },
+                        label = { Text("Confirm New Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    codeError?.let {
+                        Text(it, color = RecordRed, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val currentOk = SuperUserPrefs.isSuperUserCode(context, currentCode)
+                    when {
+                        !currentOk -> codeError = "Current password is incorrect"
+                        newCode.length < 4 -> codeError = "New password must be at least 4 characters"
+                        newCode != confirmCode -> codeError = "New password and confirm password do not match"
+                        !SuperUserPrefs.setSuperUserCode(context, newCode) -> codeError = "Failed to save new password"
+                        else -> {
+                            superUserCode = SuperUserPrefs.getSuperUserCode(context)
+                            codeChangeMessage = "Super user password updated"
+                            codeError = null
+                            showChangeCodeDialog = false
+                        }
+                    }
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangeCodeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 /* ================================================================== */
@@ -370,7 +585,8 @@ private fun RecordingItem(
     isPlaying: Boolean,
     progress: Float,
     onPlay: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSave: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
     val displayName = remember(file) {
@@ -438,6 +654,10 @@ private fun RecordingItem(
                     )
                 }
 
+                IconButton(onClick = onSave) {
+                    Icon(Icons.Filled.Save, "Save to device", tint = AccentBlue.copy(alpha = 0.8f),
+                        modifier = Modifier.size(20.dp))
+                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Filled.Delete, "Delete", tint = RecordRed.copy(alpha = 0.7f),
                         modifier = Modifier.size(20.dp))
@@ -477,4 +697,9 @@ private fun formatFileSize(bytes: Long): String {
         bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
         else                -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
     }
+}
+
+private fun maskCode(code: String): String {
+    if (code.length <= 2) return "••"
+    return "${code.first()}${"•".repeat(code.length - 2)}${code.last()}"
 }

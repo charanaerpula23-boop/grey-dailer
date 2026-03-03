@@ -81,15 +81,11 @@ class DialerCallService : InCallService() {
 
         // startForeground keeps the service alive and the notification visible
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     notifId, notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    notifId, notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                 )
             } else {
                 startForeground(notifId, notification)
@@ -121,7 +117,8 @@ class DialerCallService : InCallService() {
                                 startForeground(
                                     CallNotificationManager.NOTIFICATION_ID,
                                     ongoing,
-                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                                 )
                             } else {
                                 startForeground(CallNotificationManager.NOTIFICATION_ID, ongoing)

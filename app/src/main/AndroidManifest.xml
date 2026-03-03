@@ -33,6 +33,7 @@
 
     <!-- Call recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:allowBackup="true"
@@ -104,7 +105,7 @@
             android:name=".call.DialerCallService"
             android:permission="android.permission.BIND_INCALL_SERVICE"
             android:exported="true"
-            android:foregroundServiceType="phoneCall">
+            android:foregroundServiceType="phoneCall|microphone">
             <meta-data
                 android:name="android.telecom.IN_CALL_SERVICE_UI"
                 android:value="true" />
@@ -117,6 +118,19 @@
         <receiver
             android:name=".call.CallActionReceiver"
             android:exported="false" />
+
+        <!-- Accessibility service – elevates audio capture privileges for call recording -->
+        <service
+            android:name=".call.CallRecordAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
     </application>
 

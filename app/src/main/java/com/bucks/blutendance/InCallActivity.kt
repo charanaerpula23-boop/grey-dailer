@@ -87,8 +87,12 @@ import kotlinx.coroutines.delay
 /**
  * Full-screen activity displayed during an active / incoming call.
  * Uses the same white theme as the rest of the app for consistency.
+ * Acquires a proximity wake-lock so the screen turns off when held to the ear.
  */
 class InCallActivity : ComponentActivity() {
+
+    private var proximityWakeLock: android.os.PowerManager.WakeLock? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -105,6 +109,9 @@ class InCallActivity : ComponentActivity() {
             android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         )
 
+        // ── Proximity sensor: screen off when near ear ───────────
+        acquireProximityWakeLock()
+
         enableEdgeToEdge()
         setContent {
             FirstappTheme(darkTheme = false) {
@@ -115,6 +122,33 @@ class InCallActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+    }
+
+    override fun onDestroy() {
+        releaseProximityWakeLock()
+        super.onDestroy()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireProximityWakeLock() {
+        try {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            if (pm.isWakeLockLevelSupported(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                proximityWakeLock = pm.newWakeLock(
+                    android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                    "com.bucks.blutendance:ProximitySensor"
+                ).apply {
+                    acquire()
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun releaseProximityWakeLock() {
+        try {
+            proximityWakeLock?.let { if (it.isHeld) it.release() }
+            proximityWakeLock = null
+        } catch (_: Exception) { }
     }
 }
 

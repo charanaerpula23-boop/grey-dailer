@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Dialer</string>
+    <string name="accessibility_service_description">Enables call recording by allowing the app to capture call audio. This service does not collect or process any accessibility data.</string>
 </resources>
